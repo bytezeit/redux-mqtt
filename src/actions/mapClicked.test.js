@@ -5,7 +5,7 @@ it('returns correct action', () => {
   const lng = 2.5
   const expected = {
     type: 'MAP_CLICKED',
-    marker: { lat, lng }
+    position: { lat, lng }
   }
   const result = mapClicked(lat, lng)
   expect(result).toEqual(expected)
