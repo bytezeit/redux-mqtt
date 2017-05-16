@@ -1,13 +1,15 @@
+import { addMarker } from '../actions/addMarker'
+
 export const mqtt = (client) => ({ dispatch }) => {
-  const middleware = (next) => (action) => {
-    switch(action.type) {
-      case 'MAP_CLICKED':
-        publishAction({
-          type: 'ADD_MARKER',
-          marker: action.position
-        })
-    }
-    next(action)
+  const setupReceiveAndSendActionsMiddleware = () => {
+    receiveAndDispatchIncomingActions(client, dispatch)
+    return publishOutgoingActionsMiddleware
+  }
+
+  const receiveAndDispatchIncomingActions = () => {
+    ensureClientIsConnected()
+    subscribeToMessages()
+    client.on('message', handleIncomingMessage)
   }
 
   const ensureClientIsConnected = () => {
@@ -18,24 +20,30 @@ export const mqtt = (client) => ({ dispatch }) => {
     client.subscribe('actions')
   }
 
-  const receiveAndDispatchIncomingActions = () => {
+  const handleIncomingMessage = (channel, message) => {
     const allowedTypes = ['ADD_MARKER']
-    client.on('message', (channel, message) => {
-      switch(channel) {
-        case 'actions':
-          const action = JSON.parse(message)
-          allowedTypes.includes(action.type) && dispatch(action)
-      }
-    })
+    switch(channel) {
+      case 'actions':
+        const action = JSON.parse(message)
+        if(allowedTypes.includes(action.type)) return dispatch(action)
+    }
+  }
+
+  const publishOutgoingActionsMiddleware = (next) => (action) => {
+    if(action.type === 'MAP_CLICKED') handleMapClickedAction(action)
+    next(action)
+  }
+
+  const handleMapClickedAction = (action) => {
+    const { lat, lng } = action.position
+    const actionToPublish = addMarker(lat, lng)
+    publishAction(actionToPublish)
   }
 
   const publishAction = (action) => {
     client.publish('actions', JSON.stringify(action))
   }
 
-  ensureClientIsConnected(client)
-  subscribeToMessages(client)
-  receiveAndDispatchIncomingActions(client, dispatch)
-  return middleware
+  return setupReceiveAndSendActionsMiddleware()
 }
 
